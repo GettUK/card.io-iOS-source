@@ -39,6 +39,10 @@
 /// Defaults to nil; if nil, will use card.io green.
 @property(nonatomic, retain, readwrite) UIColor *guideColor;
 
+/// Alter the card guide (bracket) color. Opaque colors recommended.
+/// Defaults to nil; if nil, will use card.io green.
+@property(nonatomic, retain, readwrite) UIColor *mainColor;
+
 /// Set to YES to show the card.io logo over the camera instead of the PayPal logo. Defaults to NO.
 @property(nonatomic, assign, readwrite) BOOL useCardIOLogo;
 

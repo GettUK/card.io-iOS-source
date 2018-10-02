@@ -118,7 +118,7 @@ def build(outdir=None, device_sdk=None, simulator_sdk=None, **kwargs):
 
     outdir = os.path.abspath(os.path.expanduser(outdir))
     print colors.yellow("Will save release sdk to {outdir}".format(outdir=outdir))
-    out_subdir = "card.io_ios_sdk_{0}".format(_version_str(show_dirty=True))
+    out_subdir = "card.io_ios_sdk"
 
     xcode_preprocessor_flags.update(kwargs)
     formatted_xcode_preprocessor_flags = " ".join("{k}={v}".format(k=k, v=v) for k, v in xcode_preprocessor_flags.iteritems())

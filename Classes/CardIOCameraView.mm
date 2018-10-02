@@ -76,14 +76,14 @@
   self = [super initWithFrame:frame];
   if(self) {
     _deviceOrientation = UIDeviceOrientationUnknown;
-
+    
     self.autoresizingMask = UIViewAutoresizingNone;
     self.backgroundColor = [UIColor clearColor];
     self.clipsToBounds = YES;
-
+    
     _delegate = delegate;
     _config = config;
-
+    
     _videoStream = [[CardIOVideoStream alloc] init];
     self.videoStream.config = config;
     self.videoStream.delegate = self;
@@ -95,10 +95,10 @@
     
     // These settings are helpful when debugging rotation/bounds/rendering issues:
     // self.videoStream.previewLayer.backgroundColor = [UIColor yellowColor].CGColor;
-
+    
     // Preview of the camera image
     [self.layer addSublayer:self.videoStream.previewLayer];
-
+    
     // Guide layer shows card guide edges and other progress feedback directly related to the camera contents
     _cardGuide = [[CardIOGuideLayer alloc] initWithDelegate:self];
     self.cardGuide.contentsGravity = kCAGravityResizeAspect;
@@ -106,8 +106,9 @@
     self.cardGuide.animationDuration = kRotationAnimationDuration;
     self.cardGuide.deviceOrientation = self.deviceOrientation;
     self.cardGuide.guideColor = config.guideColor;
+    self.cardGuide.mainColor = config.mainColor;
     [self.layer addSublayer:self.cardGuide];
-
+    
     NSString *scanInstructions = nil;
     scanInstructions = config.scanInstructions;
     if(!scanInstructions) {
@@ -121,26 +122,34 @@
     self.guideLayerLabel.font = [UIFont fontWithName:@"Helvetica-Bold" size:kStandardInstructionsFontSize];
     self.guideLayerLabel.numberOfLines = 0;
     [self addSubview:self.guideLayerLabel];
-
+    
     // Shutter view for shutter-open animation
     _shutter = [[CardIOShutterView alloc] initWithFrame:CGRectZero];
     [self.shutter setOpen:NO animated:NO duration:0];
     [self addSubview:self.shutter];
-
+    
     // Tap-to-refocus support
     if([self.videoStream hasAutofocus]) {
       UITapGestureRecognizer *touch = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(refocus)];
       [self addGestureRecognizer:touch];
     }
-
+    
     // Set up the light button
-    if([self.videoStream hasTorch] && ![self.videoStream canSetTorchLevel]) {
+    if([self.videoStream hasTorch]) {
       _lightButton = [CardIOResource lightButton];
-      self.lightButton.accessibilityLabel = CardIOLocalizedString(@"activate_flash", config.languageOrLocale); // Turn flash on.
+      // self.lightButton.accessibilityLabel = CardIOLocalizedString(@"activate_flash", config.languageOrLocale); // Turn flash on.
+      CALayer *layer = _lightButton.layer;
+      layer.backgroundColor = [[UIColor clearColor] CGColor];
+      layer.borderColor = [[UIColor darkGrayColor] CGColor];
+      layer.cornerRadius = 8.0f;
+      layer.borderWidth = 0.0f;
       [self.lightButton addTarget:self action:@selector(toggleTorch:) forControlEvents:UIControlEventTouchUpInside];
+      [self.lightButton setImage:[[CardIOBundle sharedInstance] imageNamed:@"flashlight_on.png"] forState:UIControlStateNormal];
       [self addSubview:self.lightButton];
+    } else {
+      NSLog(@"NO TORCH...");
     }
-
+    
     // Set up logo
     NSString *logoImageName = config.useCardIOLogo ? @"card_io_logo.png" : @"paypal_logo.png";
     _logoView = [[UIImageView alloc] initWithImage:[[CardIOBundle sharedInstance] imageNamed:logoImageName]];
@@ -152,18 +161,18 @@
     [self addSubview:self.logoView];
     
 #if CARDIO_DEBUG
-// This can be useful for debugging dynamic changes, such as brightness, torch setting, etc.
-//    _debugTextField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 300, 20)];
-//    _debugTextField.textColor = [UIColor greenColor];
-//    _debugTextField.font = [UIFont fontWithName:@"Helvetica-Bold" size:14.0f];
-//    _debugTextField.backgroundColor = [UIColor clearColor];
-//    [self addSubview:_debugTextField];
+    // This can be useful for debugging dynamic changes, such as brightness, torch setting, etc.
+    //    _debugTextField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 300, 20)];
+    //    _debugTextField.textColor = [UIColor greenColor];
+    //    _debugTextField.font = [UIFont fontWithName:@"Helvetica-Bold" size:14.0f];
+    //    _debugTextField.backgroundColor = [UIColor clearColor];
+    //    [self addSubview:_debugTextField];
 #endif
-
+    
     if(config.hideCardIOLogo) {
       [self.logoView removeFromSuperview]; // merely setting .hidden requires that we maintain this during rotations, etc. :(
     }
-
+    
     UIView *scanOverlayView = config.scanOverlayView;
     if(scanOverlayView) {
       [self addSubview:scanOverlayView];
@@ -174,7 +183,7 @@
 
 - (void)startVideoStreamSession {
   [self.videoStream startSession];
-
+  
   // If we don't do this, then when the torch was on, and the card read failed,
   // it still shows as on when this view is re-displayed, even though the ending
   // of the session turned it off.
@@ -214,17 +223,17 @@
 
 - (void)layoutSubviews {
   [self updateCameraOrientation];
-
+  
   CGRect cameraPreviewFrame = [self cameraPreviewFrame];
-
+  
   SuppressCAAnimation(^{
     if (!CGRectEqualToRect(self.videoStream.previewLayer.frame, cameraPreviewFrame)) {
       self.videoStream.previewLayer.frame = cameraPreviewFrame;
     }
     self.shutter.frame = cameraPreviewFrame;
-
+    
     [self layoutCameraButtons];
-
+    
     self.cardGuide.frame = cameraPreviewFrame;
   });
 }
@@ -242,10 +251,7 @@
 - (void)updateLightButtonState {
   if (self.lightButton) {
     BOOL torchIsOn = [self.videoStream torchIsOn];
-    [self.lightButton setImage:[CardIOResource boltImageForTorchOn:torchIsOn] forState:UIControlStateNormal];
-    self.lightButton.accessibilityLabel = torchIsOn ?
-            CardIOLocalizedString(@"deactivate_flash", self.config.languageOrLocale) : // Turn flash off.
-            CardIOLocalizedString(@"activate_flash", self.config.languageOrLocale); // Turn flash on.
+    [self.lightButton setImage:[[CardIOBundle sharedInstance] imageNamed: torchIsOn ? @"flashlight_off.png" : @"flashlight_on.png"] forState:UIControlStateNormal];
   }
 }
 
@@ -253,7 +259,7 @@
   self.hasLaidoutCameraButtons = YES;
   
   CGRect cameraPreviewFrame = [self cameraPreviewFrame];
-
+  
   // Hide the buttons when the view is really, really small
 #define kButtonGreekingThreshold 200
   SuppressCAAnimation(^{
@@ -271,27 +277,27 @@
 #endif
     }
   });
-
-  self.logoView.frame = CGRectWithXYAndSize(cameraPreviewFrame.size.width + cameraPreviewFrame.origin.x - self.logoView.frame.size.width - 10.0f,
-                                              cameraPreviewFrame.origin.y + 10.0f,
-                                              self.logoView.frame.size);
   
-  self.lightButton.frame = CGRectWithXYAndSize(cameraPreviewFrame.origin.x + 10.0f,
-                                               cameraPreviewFrame.origin.y + 10.0f,
+  self.logoView.frame = CGRectWithXYAndSize(cameraPreviewFrame.size.width + cameraPreviewFrame.origin.x - self.logoView.frame.size.width - 10.0f,
+                                            cameraPreviewFrame.origin.y + 10.0f,
+                                            self.logoView.frame.size);
+  
+  self.lightButton.frame = CGRectWithXYAndSize(cameraPreviewFrame.size.width + cameraPreviewFrame.origin.x - self.lightButton.frame.size.width  - 10.0f,
+                                               self.lightButton.window.frame.origin.y + 10.0f,
                                                self.lightButton.frame.size);
-
-
+  
+  
   InterfaceToDeviceOrientationDelta delta = orientationDelta([UIApplication sharedApplication].statusBarOrientation, self.deviceOrientation);
   CGFloat rotation = -rotationForOrientationDelta(delta); // undo the orientation delta
   CGAffineTransform r = CGAffineTransformMakeRotation(rotation);
   self.logoView.transform = r;
-  self.lightButton.transform = r;
+  //  self.lightButton.transform = r;
   
 #if CARDIO_DEBUG
   _debugTextField.frame = CGRectWithXYAndSize(cameraPreviewFrame.origin.x + 10.0f,
                                               cameraPreviewFrame.origin.y + cameraPreviewFrame.size.height - _debugTextField.frame.size.height - 10.0f,
                                               _debugTextField.frame.size);
-
+  
   switch (delta) {
     case InterfaceToDeviceOrientationSame: {
       _debugTextField.transform = CGAffineTransformTranslate(r, 70.0f, 64.0f);
@@ -341,10 +347,10 @@
                                                name:UIDeviceOrientationDidChangeNotification
                                              object:[UIDevice currentDevice]];
   [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
-
+  
   self.deviceOrientation = UIDeviceOrientationUnknown;
   [self didReceiveDeviceOrientationNotification:nil];
-
+  
   [self.videoStream willAppear];
   [self becomeFirstResponder];
 }
@@ -385,7 +391,7 @@
       }
       break;
   }
-
+  
   if (![self isSupportedOverlayOrientation:(UIInterfaceOrientation)newDeviceOrientation]) {
     if ([self isSupportedOverlayOrientation:(UIInterfaceOrientation)self.deviceOrientation]) {
       newDeviceOrientation = self.deviceOrientation;
@@ -397,7 +403,7 @@
       }
     }
   }
-
+  
   if(newDeviceOrientation != self.deviceOrientation) {
     self.deviceOrientation = newDeviceOrientation;
     [self.cardGuide didRotateToDeviceOrientation:self.deviceOrientation];
@@ -407,12 +413,12 @@
     else {
       [self layoutCameraButtons];
     }
-
+    
     self.guideLayerLabel.hidden = YES;
     [self performSelector:@selector(showGuideLabel) withObject:nil afterDelay:kRotationLabelShowDelay];
     
     [self setNeedsLayout];
-
+    
     if(self.config.scanOverlayView && !self.rotatingInterface) {
       NSDictionary *info = @{CardIOCurrentScanningOrientation: @(newDeviceOrientation),
                              CardIOScanningOrientationAnimationDuration: @(kRotationAnimationDuration)};
@@ -433,7 +439,7 @@
   //        INTERFACE_LANDSCAPE_OR_PORTRAIT([UIApplication sharedApplication].statusBarOrientation),
   //        DEVICE_LANDSCAPE_OR_PORTRAIT(self.deviceOrientation),
   //        rotation * 180 / M_PI);
-
+  
   SuppressCAAnimation(^{
     self.videoStream.previewLayer.transform = transform;
   });
@@ -463,10 +469,10 @@
   CGFloat height = MIN(internalGuideFrame.size.width, internalGuideFrame.size.height);
   
   CGRect internalGuideRect = CGRectZeroWithSize(CGSizeMake(width, height));
-
+  
   self.guideLayerLabel.bounds = internalGuideRect;
   [self.guideLayerLabel sizeToFit];
-
+  
   CGRect cameraPreviewFrame = [self cameraPreviewFrame];
   self.guideLayerLabel.center = CGPointMake(CGRectGetMidX(cameraPreviewFrame), CGRectGetMidY(cameraPreviewFrame));
   
@@ -476,7 +482,7 @@
     self.guideLayerLabel.font = [UIFont fontWithName:self.guideLayerLabel.font.fontName size:self.guideLayerLabel.font.pointSize - 1];
     textRect = [self.guideLayerLabel textRectForBounds:internalGuideRect limitedToNumberOfLines:0];
   }
-
+  
   [self orientGuideLayerLabel];
 }
 
@@ -484,17 +490,17 @@
 
 - (void)videoStream:(CardIOVideoStream *)stream didProcessFrame:(CardIOVideoFrame *)processedFrame {
   [self.shutter setOpen:YES animated:YES duration:0.5f];
-
+  
   // Hide instructions once we start to find edges
   if (processedFrame.numEdgesFound < 0.05f) {
     [UIView animateWithDuration:kLabelVisibilityAnimationDuration animations:^{self.guideLayerLabel.alpha = 1.0f;}];
   } else if (processedFrame.numEdgesFound > 2.1f) {
     [UIView animateWithDuration:kLabelVisibilityAnimationDuration animations:^{self.guideLayerLabel.alpha = 0.0f;}];
   }
-
+  
   // Pass the video frame to the cardGuide so that it can update the edges
   self.cardGuide.videoFrame = processedFrame;
-
+  
 #if CARDIO_DEBUG
   static NSTimeInterval lastUpdated = 0;
   NSTimeInterval now = [[NSDate date] timeIntervalSince1970];

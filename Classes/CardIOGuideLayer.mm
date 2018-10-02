@@ -18,7 +18,7 @@
 #pragma mark - Colors
 
 #define kStandardMinimumBoundsWidth 300.0f
-#define kStandardLineWidth 12.0f
+#define kStandardLineWidth 5.0f
 #define kStandardCornerSize 50.0f
 #define kAdjustFudge 0.2f  // Because without this, we see a mini gap between edge path and corner path.
 
@@ -31,7 +31,7 @@
 
 #pragma mark - Types
 
-typedef enum { 
+typedef enum {
   kTopLeft,
   kTopRight,
   kBottomLeft,
@@ -75,16 +75,16 @@ typedef enum {
     _guideLayerDelegate = guideLayerDelegate;
     
     _deviceOrientation = UIDeviceOrientationPortrait;
-
+    
     _guidesLockedOn = NO;
     _edgeScoreTop = 0.0f;
     _edgeScoreRight = 0.0f;
     _edgeScoreBottom = 0.0f;
     _edgeScoreLeft = 0.0f;
-
+    
     _allEdgesFoundDecayedScore = 0.0f;
     _numEdgesFoundDecayedScore = 0.0f;
-
+    
     _fauxCardLayer = [CAGradientLayer layer];
     _topLayer = [CAShapeLayer layer];
     _bottomLayer = [CAShapeLayer layer];
@@ -110,15 +110,15 @@ typedef enum {
                              (id)[UIColor colorWithWhite:1.0f alpha:0.2f].CGColor,
                              (id)[UIColor colorWithWhite:0.0f alpha:0.2f].CGColor,
                              nil];
-    [self addSublayer:_fauxCardLayer];
-
+    //    [self addSublayer:_fauxCardLayer];
+    
     _backgroundOverlay = [CAShapeLayer layer];
     _backgroundOverlay.cornerRadius = 0.0f;
     _backgroundOverlay.masksToBounds = YES;
     _backgroundOverlay.borderWidth = 0.0f;
-    _backgroundOverlay.fillColor = [UIColor colorWithWhite:0.0f alpha:0.7f].CGColor;
+    
     [self addSublayer:_backgroundOverlay];
-
+    
 #if CARDIO_DEBUG
     _debugOverlay = [CALayer layer];
     _debugOverlay.cornerRadius = 0.0f;
@@ -150,7 +150,7 @@ typedef enum {
     
     // setting the capture frame here serves to initialize the remaining shapelayer properties
     _videoFrame = nil;
-
+    
     [self setNeedsLayout];
   }
   return self;
@@ -170,8 +170,8 @@ typedef enum {
   size = fabsf(size);
 #endif
   CGMutablePathRef path = CGPathCreateMutable();
-  CGPoint pStart = point, 
-          pEnd = point;
+  CGPoint pStart = point,
+  pEnd = point;
   
   // All this assumes phone is turned horizontally, to widescreen mode
   switch (posType) {
@@ -201,19 +201,19 @@ typedef enum {
 }
 
 - (CGPathRef)newMaskPathForGuideFrame:(CGRect)guideFrame outerFrame:(CGRect)frame {
-
+  
   CGMutablePathRef path = CGPathCreateMutable();
-
+  
   CGPathMoveToPoint(path, NULL, frame.origin.x, frame.origin.y);
   CGPathAddLineToPoint(path, NULL, frame.origin.x + frame.size.width, frame.origin.y);
   CGPathAddLineToPoint(path, NULL, frame.origin.x + frame.size.width, frame.origin.y + frame.size.height);
   CGPathAddLineToPoint(path, NULL, frame.origin.x, frame.origin.y + frame.size.height);
-
+  
   CGPathMoveToPoint(path, NULL, guideFrame.origin.x, guideFrame.origin.y);
   CGPathAddLineToPoint(path, NULL, guideFrame.origin.x, guideFrame.origin.y + guideFrame.size.height);
   CGPathAddLineToPoint(path, NULL, guideFrame.origin.x + guideFrame.size.width, guideFrame.origin.y + guideFrame.size.height);
   CGPathAddLineToPoint(path, NULL, guideFrame.origin.x + guideFrame.size.width, guideFrame.origin.y);
-
+  
   return path;
 }
 
@@ -247,17 +247,17 @@ typedef enum {
 }
 
 // Animate edge layer
-- (void)animateEdgeLayer:(CAShapeLayer *)layer 
-         toPathFromPoint:(CGPoint)firstPoint 
-                 toPoint:(CGPoint)secondPoint 
-         adjustedBy:(CGPoint)adjPoint {
+- (void)animateEdgeLayer:(CAShapeLayer *)layer
+         toPathFromPoint:(CGPoint)firstPoint
+                 toPoint:(CGPoint)secondPoint
+              adjustedBy:(CGPoint)adjPoint {
   layer.lineWidth = [self lineWidth];
   
   firstPoint = CGPointMake(firstPoint.x + adjPoint.x, firstPoint.y + adjPoint.y);
-  secondPoint = CGPointMake(secondPoint.x - adjPoint.x, secondPoint.y - adjPoint.y); 
+  secondPoint = CGPointMake(secondPoint.x - adjPoint.x, secondPoint.y - adjPoint.y);
   CGPathRef newPath = [[self class] newPathFromPoint:firstPoint toPoint:secondPoint];
   [self animateLayer:layer toNewPath:newPath];
-
+  
   // I used to see occasional crashes stemming from this CGPathRelease. I'm restoring it,
   // since I can no longer reproduce the crashes, and it is a memory leak otherwise. :)
   CGPathRelease(newPath);
@@ -268,7 +268,7 @@ typedef enum {
   
   CGPathRef newPath = [[self class] newCornerPathFromPoint:point size:[self cornerSize] positionType:posType];
   [self animateLayer:layer toNewPath:newPath];
-
+  
   // See above comment on crashes. Same probably applies here. - BPF
   CGPathRelease(newPath);
 }
@@ -431,7 +431,7 @@ typedef enum {
 
 - (void)didRotateToDeviceOrientation:(UIDeviceOrientation)deviceOrientation {
   [self setNeedsLayout];
-
+  
   if (deviceOrientation != self.deviceOrientation) {
     self.deviceOrientation = deviceOrientation;
     [self animateFauxCardLayerToFrame:self.guideFrame];
@@ -458,14 +458,14 @@ typedef enum {
   self.edgeScoreRight = kEdgeDecay * self.edgeScoreRight + (1 - kEdgeDecay) * (newFrame.foundRightEdge ? 1.0f : -1.0f);
   self.edgeScoreBottom = kEdgeDecay * self.edgeScoreBottom + (1 - kEdgeDecay) * (newFrame.foundBottomEdge ? 1.0f : -1.0f);
   self.edgeScoreLeft = kEdgeDecay * self.edgeScoreLeft + (1 - kEdgeDecay) * (newFrame.foundLeftEdge ? 1.0f : -1.0f);
-
+  
   [self updateStrokes];
-
+  
   // Update the scores with our decay factor
   float allEdgesFoundScore = (newFrame.foundAllEdges ? 1.0f : 0.0f);
   self.allEdgesFoundDecayedScore = kAllEdgesFoundScoreDecay * self.allEdgesFoundDecayedScore + (1.0f - kAllEdgesFoundScoreDecay) * allEdgesFoundScore;
   self.numEdgesFoundDecayedScore = kNumEdgesFoundScoreDecay * self.numEdgesFoundDecayedScore + (1.0f - kNumEdgesFoundScoreDecay) * newFrame.numEdgesFound;
-
+  
   if (self.allEdgesFoundDecayedScore >= 0.7f) {
     [self showCardFound:YES];
   } else if (self.allEdgesFoundDecayedScore <= 0.1f){
@@ -482,7 +482,7 @@ typedef enum {
     [self setGuideColor:kDefaultGuideColor];
     return;
   }
-
+  
   _guideColor = newGuideColor;
   
   NSArray *edgeLayers = [NSArray arrayWithObjects:
@@ -495,7 +495,7 @@ typedef enum {
                          self.bottomLeftLayer,
                          self.bottomRightLayer,
                          nil];
-
+  
   SuppressCAAnimation(^{
     for(CAShapeLayer *layer in edgeLayers) {
       layer.strokeColor = self.guideColor.CGColor;
@@ -519,17 +519,29 @@ typedef enum {
     [self.guideLayerDelegate guideLayerDidLayout:rotatedGuideFrame];
     
 #if CARDIO_DEBUG
-  [self rotateDebugOverlay];
+    [self rotateDebugOverlay];
 #endif
   });
 }
 
 - (void)showCardFound:(BOOL)found {
+  
   self.guidesLockedOn = found;
+  
+  UIColor* thisColor = self.mainColor;
+  if (!thisColor) {
+    thisColor = UIColor.grayColor;
+  }
+  
   if (found) {
-    self.backgroundOverlay.fillColor = [UIColor colorWithWhite:0.0f alpha:0.8f].CGColor;
+    self.backgroundOverlay.fillColor = thisColor.CGColor;
   } else {
-    self.backgroundOverlay.fillColor = [UIColor colorWithWhite:0.0f alpha:0.0f].CGColor;
+    const CGFloat *components = CGColorGetComponents(thisColor.CGColor);
+    CGFloat red = components[0];
+    CGFloat green = components[1];
+    CGFloat blue = components[2];
+    
+    self.backgroundOverlay.fillColor = [UIColor colorWithRed: red green: green blue: blue alpha: 0.7f].CGColor;
   }
   [self updateStrokes];
 }

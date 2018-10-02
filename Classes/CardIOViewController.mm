@@ -11,6 +11,7 @@
 #import "CardIOIplImage.h"
 #endif
 
+#import "CardIOBundle.h"
 #import "CardIOCGGeometry.h"
 #import "CardIOVideoFrame.h"
 #import "CardIODataEntryViewController.h"
@@ -54,6 +55,8 @@
 @property(nonatomic, assign, readwrite) BOOL                newStatusBarHiddenStatus;
 @property(nonatomic, assign, readwrite) BOOL                statusBarWasOriginallyHidden;
 @property(nonatomic, strong, readwrite) UIButton           *cancelButton;
+@property(nonatomic, strong, readwrite) UIButton           *flashlightOnButton;
+@property(nonatomic, strong, readwrite) UIButton           *flashlightOffButton;
 @property(nonatomic, strong, readwrite) UIButton           *manualEntryButton;
 @property(nonatomic, assign, readwrite) UIDeviceOrientation deviceOrientation;
 @property(nonatomic, assign, readwrite) CGSize              cancelButtonFrameSize;
@@ -65,7 +68,6 @@
 
 @implementation CardIOViewController
 
-
 - (id)init {
   if((self = [super initWithNibName:nil bundle:nil])) {
     if (iOS_7_PLUS) {
@@ -73,10 +75,10 @@
       self.edgesForExtendedLayout = UIRectEdgeNone;
     }
     else {
-      #pragma clang diagnostic push
-      #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
       self.wantsFullScreenLayout = YES;
-      #pragma clang diagnostic pop
+#pragma clang diagnostic pop
     }
     _statusBarWasOriginallyHidden = [UIApplication sharedApplication].statusBarHidden;
   }
@@ -89,13 +91,13 @@
 - (void)viewDidLoad {
   [super viewDidLoad];
   self.view.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
-
+  
   self.view.backgroundColor = [UIColor colorWithWhite:0.15f alpha:1.0f];
-
+  
   CGRect cardIOViewFrame = CGRectMake(0, 0, self.view.bounds.size.width, self.view.bounds.size.height);
   cardIOViewFrame = CGRectRoundedToNearestPixel(cardIOViewFrame);
   self.cardIOView = [[CardIOView alloc] initWithFrame:cardIOViewFrame];
-
+  
   self.cardIOView.delegate = self;
   self.cardIOView.languageOrLocale = self.context.languageOrLocale;
   self.cardIOView.useCardIOLogo = self.context.useCardIOLogo;
@@ -103,47 +105,55 @@
   self.cardIOView.guideColor = self.context.guideColor;
   self.cardIOView.scannedImageDuration = self.context.scannedImageDuration;
   self.cardIOView.allowFreelyRotatingCardGuide = self.context.allowFreelyRotatingCardGuide;
-
+  
   self.cardIOView.scanInstructions = self.context.scanInstructions;
   self.cardIOView.scanExpiry = self.context.collectExpiry && self.context.scanExpiry;
   self.cardIOView.scanOverlayView = self.context.scanOverlayView;
-
+  
   self.cardIOView.detectionMode = self.context.detectionMode;
-
+  
+  // Done: backgroundColor styled to general. // TODO: set this parameter dynamically via REACT NATIVE
+  self.view.backgroundColor = self.context.mainColor;
+  if (!self.view.backgroundColor) {
+    self.view.backgroundColor = UIColor.grayColor;
+  }
+  
   [self.view addSubview:self.cardIOView];
-
+  
+  /* CANCEL BUTTON START */
   _cancelButton = [self makeButtonWithTitle:CardIOLocalizedString(@"cancel", self.context.languageOrLocale) // Cancel
                                withSelector:@selector(cancel:)];
   _cancelButtonFrameSize = self.cancelButton.frame.size;
   [self.view addSubview:self.cancelButton];
-
-  if (!self.context.disableManualEntryButtons) {
-    _manualEntryButton = [self makeButtonWithTitle:CardIOLocalizedString(@"manual_entry", self.context.languageOrLocale) // Enter Manually
-                                      withSelector:@selector(manualEntry:)];
-    _manualEntryButtonFrameSize = self.manualEntryButton.frame.size;
-    [self.view addSubview:self.manualEntryButton];
-  }
-
-  // Add shadow to camera preview
-  _shadowLayer = [CALayer layer];
-  self.shadowLayer.shadowRadius = kDropShadowRadius;
-  self.shadowLayer.shadowColor = [UIColor blackColor].CGColor;
-  self.shadowLayer.shadowOffset = CGSizeMake(0.0f, 0.0f);
-  self.shadowLayer.shadowOpacity = 0.5f;
-  self.shadowLayer.masksToBounds = NO;
-  [self.cardIOView.layer insertSublayer:self.shadowLayer atIndex:0]; // must go *behind* everything
+  /* CANCEL BUTTON END */
+  
+  //  if (!self.context.disableManualEntryButtons) {
+  //    _manualEntryButton = [self makeButtonWithTitle:CardIOLocalizedString(@"manual_entry", self.context.languageOrLocale) // Enter Manually
+  //                                      withSelector:@selector(manualEntry:)];
+  //    _manualEntryButtonFrameSize = self.manualEntryButton.frame.size;
+  //    [self.view addSubview:self.manualEntryButton];
+  //  }
+  
+  //  // Add shadow to camera preview
+  //  _shadowLayer = [CALayer layer];
+  //  self.shadowLayer.shadowRadius = kDropShadowRadius;
+  //  self.shadowLayer.shadowColor = [UIColor blackColor].CGColor;
+  //  self.shadowLayer.shadowOffset = CGSizeMake(0.0f, 0.0f);
+  //  self.shadowLayer.shadowOpacity = 0.5f;
+  //  self.shadowLayer.masksToBounds = NO;
+  //  [self.cardIOView.layer insertSublayer:self.shadowLayer atIndex:0]; // must go *behind* everything
 }
 
 - (void)viewWillLayoutSubviews {
   [super viewWillLayoutSubviews];
-
+  
   self.cardIOView.frame = self.view.bounds;
-
+  
   // Only muck around with the status bar at all if we're in full screen modal style
   if (self.navigationController.modalPresentationStyle == UIModalPresentationFullScreen
       && [CardIOMacros appHasViewControllerBasedStatusBar]
       && !self.statusBarWasOriginallyHidden) {
-
+    
     self.changeStatusBarHiddenStatus = YES;
     self.newStatusBarHiddenStatus = YES;
   }
@@ -152,35 +162,35 @@
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
   [self.cardIOView layoutIfNeeded]; // otherwise self.cardIOView's layoutSubviews doesn't get called until *after* viewDidLayoutSubviews returns!
-
+  
   // Re-layout shadow
   CGRect cameraPreviewFrame = self.cardIOView.cameraPreviewFrame;
   UIBezierPath *shadowPath = [UIBezierPath bezierPathWithRect:UIEdgeInsetsInsetRect(cameraPreviewFrame, kShadowInsets)];
   self.shadowLayer.shadowPath = shadowPath.CGPath;
-
+  
   [self layoutButtonsForCameraPreviewFrame:self.cardIOView.cameraPreviewFrame];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
   [super viewWillAppear:animated];
-
+  
   self.deviceOrientation = UIDeviceOrientationUnknown;
-
+  
   self.cardIOView.hidden = NO;
   [self.navigationController setNavigationBarHidden:YES animated:animated];
-
+  
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(didReceiveDeviceOrientationNotification:)
                                                name:UIDeviceOrientationDidChangeNotification
                                              object:[UIDevice currentDevice]];
   [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
-
+  
   [self didReceiveDeviceOrientationNotification:nil];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
   [super viewDidAppear:animated];
-
+  
   if (self.changeStatusBarHiddenStatus) {
     [[UIApplication sharedApplication] setStatusBarHidden:self.newStatusBarHiddenStatus withAnimation:UIStatusBarAnimationFade];
     if (iOS_7_PLUS) {
@@ -192,7 +202,7 @@
 - (void)viewWillDisappear:(BOOL)animated {
   [[UIDevice currentDevice] endGeneratingDeviceOrientationNotifications];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
-
+  
   self.cardIOView.hidden = YES;
   if (self.changeStatusBarHiddenStatus) {
     [[UIApplication sharedApplication] setStatusBarHidden:self.statusBarWasOriginallyHidden withAnimation:UIStatusBarAnimationFade];
@@ -207,18 +217,18 @@
 
 - (UIButton *)makeButtonWithTitle:(NSString *)title withSelector:(SEL)selector {
   UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
-
+  
   NSMutableDictionary *attributes = [@{
                                        NSStrokeWidthAttributeName : [NSNumber numberWithFloat:-1.0f]   // negative value => do both stroke & fill
                                        } mutableCopy];
-
+  
   attributes[NSFontAttributeName] = [UIFont boldSystemFontOfSize:18.0f];
   attributes[NSForegroundColorAttributeName] = [UIColor colorWithWhite:1.0f alpha:0.8f];
   [button setAttributedTitle:[[NSAttributedString alloc] initWithString:title attributes:attributes] forState:UIControlStateNormal];
-
+  
   attributes[NSForegroundColorAttributeName] = [UIColor whiteColor];
   [button setAttributedTitle:[[NSAttributedString alloc] initWithString:title attributes:attributes] forState:UIControlStateHighlighted];
-
+  
   CGSize buttonTitleSize = [button.titleLabel.attributedText size];
 #ifdef __LP64__
   buttonTitleSize.height = ceil(buttonTitleSize.height);
@@ -228,9 +238,12 @@
   buttonTitleSize.width = ceilf(buttonTitleSize.width);
 #endif
   button.bounds = CGRectMake(0, 0, buttonTitleSize.width + kButtonSizeOutset, buttonTitleSize.height + kButtonSizeOutset);
-
+  
   [button addTarget:self action:selector forControlEvents:UIControlEventTouchUpInside];
-
+  
+  CALayer *layer = button.layer;
+  layer.backgroundColor = [[UIColor clearColor] CGColor];
+  
   return button;
 }
 
@@ -277,7 +290,7 @@
       }
       break;
   }
-
+  
   if (![self isSupportedOverlayOrientation:(UIInterfaceOrientation)newDeviceOrientation]) {
     if ([self isSupportedOverlayOrientation:(UIInterfaceOrientation)self.deviceOrientation]) {
       newDeviceOrientation = self.deviceOrientation;
@@ -289,13 +302,13 @@
       }
     }
   }
-
+  
   if (newDeviceOrientation != self.deviceOrientation) {
     self.deviceOrientation = newDeviceOrientation;
-
+    
     // Also update initialInterfaceOrientationForViewcontroller, so that CardIOView will present its transition view in the correct orientation
     ((CardIOPaymentViewController *)self.navigationController).initialInterfaceOrientationForViewcontroller = (UIInterfaceOrientation)newDeviceOrientation;
-
+    
     if (cameraPreviewFrame.size.width == 0 || cameraPreviewFrame.size.height == 0) {
       [self.view setNeedsLayout];
     }
@@ -309,7 +322,7 @@
   if (cameraPreviewFrame.size.width == 0 || cameraPreviewFrame.size.height == 0) {
     return;
   }
-
+  
   // - When setting each button's frame, it's simplest to do that without any rotational transform applied to the button.
   //   So immediately prior to setting the frame, we set `button.transform = CGAffineTransformIdentity`.
   // - Later in this method we set a new transform for each button.
@@ -317,7 +330,7 @@
   //   CGAffineTransformIdentity position; for reasons we haven't explored, this is only desirable for the
   //   InterfaceToDeviceOrientationRotatedClockwise and InterfaceToDeviceOrientationRotatedCounterclockwise rotations.
   //   (Thanks to https://github.com/card-io/card.io-iOS-source/issues/30 for the [CATransaction setDisableActions:YES] suggestion.)
-
+  
   InterfaceToDeviceOrientationDelta delta = orientationDelta([UIApplication sharedApplication].statusBarOrientation, self.deviceOrientation);
   BOOL disableTransactionActions = (delta == InterfaceToDeviceOrientationRotatedClockwise ||
                                     delta == InterfaceToDeviceOrientationRotatedCounterclockwise);
@@ -326,43 +339,47 @@
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
   }
-
+  
+  // float marginBottom = (CGRectGetMaxY(self.view.window.frame) - CGRectGetMaxY(cameraPreviewFrame))/2/2;
+  float marginBottom = 18;
+  
   self.cancelButton.transform = CGAffineTransformIdentity;
-  self.cancelButton.frame = CGRectWithXYAndSize(cameraPreviewFrame.origin.x + 5.0f,
-                                                CGRectGetMaxY(cameraPreviewFrame) - self.cancelButtonFrameSize.height - 5.0f,
+  self.cancelButton.frame = CGRectWithXYAndSize(CGRectGetMaxX(self.view.window.frame)/2 - self.cancelButtonFrameSize.width/2,
+                                                CGRectGetMaxY(self.view.window.frame) - self.cancelButtonFrameSize.height - marginBottom,
                                                 self.cancelButtonFrameSize);
-
+  
   if (self.manualEntryButton) {
     self.manualEntryButton.transform = CGAffineTransformIdentity;
     self.manualEntryButton.frame = CGRectWithXYAndSize(CGRectGetMaxX(cameraPreviewFrame) - self.manualEntryButtonFrameSize.width - 5.0f,
                                                        CGRectGetMaxY(cameraPreviewFrame) - self.manualEntryButtonFrameSize.height - 5.0f,
                                                        self.manualEntryButtonFrameSize);
   }
-
+  
+  //TODO: comment "cancelDelta" modifications in order to disable rotation
   if (disableTransactionActions) {
     [CATransaction commit];
   }
-
+  
   CGAffineTransform r;
   CGFloat rotation = -rotationForOrientationDelta(delta); // undo the orientation delta
   r = CGAffineTransformMakeRotation(rotation);
-
+  
   switch (delta) {
     case InterfaceToDeviceOrientationSame:
     case InterfaceToDeviceOrientationUpsideDown: {
-      self.cancelButton.transform = r;
+      //        self.cancelButton.transform = r;
       self.manualEntryButton.transform = r;
       break;
     }
     case InterfaceToDeviceOrientationRotatedClockwise:
     case InterfaceToDeviceOrientationRotatedCounterclockwise: {
-      CGFloat cancelDelta = (self.cancelButtonFrameSize.width - self.cancelButtonFrameSize.height) / 2;
+      //        CGFloat cancelDelta = (self.cancelButtonFrameSize.width - self.cancelButtonFrameSize.height) / 2;
       CGFloat manualEntryDelta = (self.manualEntryButtonFrameSize.width - self.manualEntryButtonFrameSize.height) / 2;
       if (delta == InterfaceToDeviceOrientationRotatedClockwise) {
-        cancelDelta = -cancelDelta;
+        //          cancelDelta = -cancelDelta;
         manualEntryDelta = -manualEntryDelta;
       }
-      self.cancelButton.transform = CGAffineTransformTranslate(r, cancelDelta, -cancelDelta);
+      //        self.cancelButton.transform = CGAffineTransformTranslate(r, cancelDelta, -cancelDelta);
       self.manualEntryButton.transform = CGAffineTransformTranslate(r, manualEntryDelta, manualEntryDelta);
       break;
     }
@@ -426,14 +443,14 @@
 
 - (void)manualEntry:(id)sender {
   [self.context.scanReport reportEventWithLabel:@"scan_manual_entry" withScanner:self.cardIOView.scanner];
-
+  
   CardIOPaymentViewController *root = (CardIOPaymentViewController *)self.navigationController;
-
+  
   CardIODataEntryViewController *manualEntryViewController = [[CardIODataEntryViewController alloc] initWithContext:self.context withStatusBarHidden:self.statusBarWasOriginallyHidden];
   manualEntryViewController.manualEntry = YES;
   root.currentViewControllerIsDataEntry = YES;
   root.initialInterfaceOrientationForViewcontroller = (UIInterfaceOrientation)self.deviceOrientation;
-
+  
   if (iOS_8_PLUS) {
     // The presentViewController:/dismissViewControllerAnimated: kludge was necessary for
     // some edge case that I can currently neither recall nor reproduce.
@@ -466,13 +483,13 @@
 
 - (void)cancel:(id)sender {
   [self.context.scanReport reportEventWithLabel:@"scan_cancel" withScanner:self.cardIOView.scanner];
-
+  
   // Hiding the CardIOView causes it to call its stopSession method, thus eliminating a visible stutter.
   // See https://github.com/card-io/card.io-iOS-SDK/issues/97
   self.cardIOView.hidden = YES;
-
+  
   [self.navigationController setNavigationBarHidden:NO animated:YES]; // to restore the color of the status bar!
-
+  
   CardIOPaymentViewController *root = (CardIOPaymentViewController *)self.navigationController;
   [root.paymentDelegate userDidCancelPaymentViewController:root];
 }
@@ -482,12 +499,12 @@
 
 - (void)cardIOView:(CardIOView *)cardIOView didScanCard:(CardIOCreditCardInfo *)cardInfo {
   self.context.detectionMode = cardIOView.detectionMode;  // may have changed from Auto to CardImageOnly
-
+  
   if (![cardInfo.cardNumber length] || self.context.suppressScanConfirmation
       || (self.context.detectionMode == CardIODetectionModeCardImageOnly)) {
     CardIOPaymentViewController *root = (CardIOPaymentViewController *)self.navigationController;
     [root setNavigationBarHidden:NO animated:YES]; // to restore the color of the status bar!
-
+    
     if ([cardInfo.cardNumber length]
         || (self.context.detectionMode == CardIODetectionModeCardImageOnly)
         ) {
@@ -502,24 +519,24 @@
     dataEntryViewController.cardImage = cardIOView.transitionView.cardView.image;
     dataEntryViewController.cardInfo = cardInfo;
     dataEntryViewController.manualEntry = self.context.suppressScannedCardImage;
-
+    
     CGPoint newCenter = [self.view convertPoint:cardIOView.transitionView.cardView.center fromView:cardIOView.transitionView];
     newCenter.y -= NavigationBarHeightForOrientation([[UIApplication sharedApplication] statusBarOrientation]);
-
+    
     dataEntryViewController.cardImageCenter = newCenter; // easier to pass this in than to recalculate it!
     dataEntryViewController.cardImageSize = CGSizeApplyAffineTransform(cardIOView.transitionView.cardView.bounds.size, cardIOView.transitionView.cardView.transform);
-
+    
     // WTF? on iPad, the key window is sometimes nil!
     UIWindow *mostImportantWindow = [[UIApplication sharedApplication] keyWindow];
     if (!mostImportantWindow) {
       mostImportantWindow = [[[UIApplication sharedApplication] windows] lastObject];
     }
     dataEntryViewController.priorKeyWindow = mostImportantWindow;
-
+    
     UIWindow *floatingCardWindow = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
     floatingCardWindow.opaque = NO;
     floatingCardWindow.backgroundColor = [UIColor clearColor];
-
+    
     UIImageView *floatingCardView = [[UIImageView alloc] initWithImage:cardIOView.transitionView.cardView.image];
     floatingCardView.bounds = CGRectZeroWithSize(dataEntryViewController.cardImageSize);
     floatingCardView.center = [floatingCardWindow convertPoint:cardIOView.transitionView.cardView.center fromView:[cardIOView.transitionView.cardView superview]];
@@ -531,19 +548,19 @@
     floatingCardView.layer.borderWidth = 2.0f;
     floatingCardView.transform = CGAffineTransformMakeRotation(orientationToRotation([[UIApplication sharedApplication] statusBarOrientation]));
     floatingCardView.hidden = cardIOView.transitionView.hidden;
-
+    
     [floatingCardWindow addSubview:floatingCardView];
-
+    
     // this is all that is needed to display a window. makeKeyAndVisible: causes all kinds of havoc that doesn't get cleared until after the app is killed.
     floatingCardWindow.hidden = NO;
-
+    
     dataEntryViewController.floatingCardView = floatingCardView;
     dataEntryViewController.floatingCardWindow = floatingCardWindow;
-
+    
     CardIOPaymentViewController *root = (CardIOPaymentViewController *)self.navigationController;
     root.currentViewControllerIsDataEntry = YES;
     root.initialInterfaceOrientationForViewcontroller = (UIInterfaceOrientation)self.deviceOrientation;
-
+    
     if (iOS_8_PLUS) {
       // The presentViewController:/dismissViewControllerAnimated: kludge was necessary for
       // some edge case that I can currently neither recall nor reproduce.

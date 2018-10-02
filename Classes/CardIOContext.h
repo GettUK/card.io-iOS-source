@@ -39,6 +39,7 @@
 @property(nonatomic, copy, readwrite)   NSString *languageOrLocale;
 @property(nonatomic, assign, readwrite) BOOL useCardIOLogo;
 @property(nonatomic, retain, readwrite) UIColor *guideColor;
+@property(nonatomic, retain, readwrite) UIColor *mainColor;
 @property(nonatomic, assign, readwrite) CGFloat scannedImageDuration;
 @property(nonatomic, assign, readwrite) BOOL allowFreelyRotatingCardGuide;
 
